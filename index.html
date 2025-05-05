@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Howdies Multi-ID WebSocket Test</title>
+  <style>
+    body { font-family: Arial, sans-serif; background-color: #111; color: #f0f0f0; padding: 20px; }
+    input, button { padding: 8px; margin: 5px 0; }
+    button { cursor: pointer; }
+    label { display: block; margin-top: 10px; }
+    #logs { white-space: pre-wrap; word-wrap: break-word; max-height: 300px; overflow-y: auto; background: #1e1e1e; color: #00ff90; padding: 10px; border: 1px solid #444; border-radius: 4px; margin-top: 15px; }
+  </style>
+</head>
+<body>
+  <h1>Howdies Multi-ID WebSocket Test</h1>
+
+  <div>
+    <label>Main Bot Username:</label>
+    <input type="text" id="main-username" placeholder="mainbot01" style="width: 100%;">
+    <label>Main Bot Password:</label>
+    <input type="text" id="main-password" placeholder="yourbotpass" style="width: 100%;">
+    <button onclick="connectMainBot()">Connect Main Bot</button>
+  </div>
+
+  <div id="logs"></div>
+
+  <script>
+    const ldUsernames = [
+      'love02', 'love04', 'love06', 'love08', 'love66', 'love68', 'love70', 'love72', 'love74', 'love76',
+      'love78', 'love80', 'love82', 'love84', 'love86', 'love88', 'love90', 'love92', 'love94', 'love96', 'love98',
+      'ant02', 'ant04', 'ant06', 'ant08', 'ant10', 'ant12', 'ant14', 'ant16', 'ant18', 'ant20', 'ant22', 'ant24',
+      'ant26', 'ant28', 'ant30', 'ant32', 'ant34', 'ant36', 'ant38', 'ant40', 'ant42', 'ant44', 'ant46', 'ant48',
+      'ant50', 'ant52', 'ant54', 'ant56', 'ant58', 'ant60', 'ant62', 'and01', 'and02', 'and03', 'and04', 'and05',
+      'and06', 'and07', 'and08', 'and09', 'and10', 'and11', 'and12', 'and13', 'and14', 'and15', 'and16', 'and17',
+      'and18', 'and19', 'and20', 'and21', 'and22', 'and23', 'and24', 'and25', 'and26', 'and27', 'and49', 'and50',
+      'and51', 'and52', 'and53', 'and54', 'and55', 'and56', 'and57', 'and58', 'and59', 'and60', 'and61', 'and62',
+      'and63', 'and64', 'and65', 'and66', 'and67', 'and68', 'and69'
+    ];
+
+    const ldPassword = "lovely";
+    let mainBotPassword = "";
+    let ldRunning = false;
+    let userIndex = 0;
+    let mainBotSocket = null;
+    let mainBotUsername = "";
+    let availableNumbers = [];
+
+    function log(message) {
+      const logs = document.getElementById("logs");
+      logs.textContent += message + "\n";
+      logs.scrollTop = logs.scrollHeight;
+    }
+
+    async function connectMainBot() {
+      const usernameInput = document.getElementById("main-username").value.trim();
+      const passwordInput = document.getElementById("main-password").value.trim();
+
+      if (!usernameInput || !passwordInput) {
+        log("❌ Please enter both username and password for main bot.");
+        return;
+      }
+
+      mainBotUsername = usernameInput.toLowerCase();
+      mainBotPassword = passwordInput;
+
+      const token = await fetchToken(mainBotUsername, mainBotPassword);
+      if (!token) {
+        log("❌ Failed to authenticate main bot.");
+        return;
+      }
+
+      const ws = new WebSocket(`wss://app.howdies.app/?token=${token}`);
+      mainBotSocket = ws;
+
+      ws.onopen = () => {
+        log(`✅ Connected as ${mainBotUsername}`);
+        ws.send(JSON.stringify({ handler: "login", username: mainBotUsername, password: mainBotPassword, fcmt: mainBotUsername, lp: true }));
+        setTimeout(() => {
+          ws.send(JSON.stringify({ handler: "joinchatroom", roomid: 281 }));
+          log("🎧 Listening for commands...");
+        }, 700);
+      };
+
+      ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        if (msg?.handler === "chatroommessage" && typeof msg.text === "string") {
+          const text = msg.text.toLowerCase();
+          if (text.includes(`@${mainBotUsername} startld`) && !ldRunning) {
+            log("✅ Received command: startld");
+            ldRunning = true;
+            userIndex = 0;
+            startLDProcess();
+          } else if (text.includes(`@${mainBotUsername} stopld`) && ldRunning) {
+            log("🛑 Received command: stopld");
+            stopLD();
+          }
+        }
+      };
+
+      ws.onerror = (err) => {
+        log(`❌ WebSocket error for main bot: ${err.message || err}`);
+      };
+    }
+
+    async function fetchToken(username, password) {
+      try {
+        const res = await fetch("https://api.howdies.app/api/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+        log(`📬 Login response for ${username}: ${JSON.stringify(data)}`);
+        return data.token || null;
+      } catch (e) {
+        log(`❌ Error fetching token for ${username}: ${e.message}`);
+        return null;
+      }
+    }
+
+    function stopLD() {
+      ldRunning = false;
+      log("✅ LD process stopped.");
+    }
+
+    async function startLDProcess() {
+      if (!ldRunning || userIndex >= ldUsernames.length - 1) {
+        log("✅ LD cycle complete.");
+        stopLD();
+        return;
+      }
+
+      const user1 = ldUsernames[userIndex];
+      const user2 = ldUsernames[userIndex + 1];
+      userIndex += 2;
+
+      try {
+        const token1 = await fetchToken(user1, ldPassword);
+        const token2 = await fetchToken(user2, ldPassword);
+        if (token1) sendLDMessage(user1, token1);
+        if (token2) sendLDMessage(user2, token2);
+      } catch (e) {
+        log(`❌ Error during LD: ${e.message}`);
+      }
+
+      setTimeout(startLDProcess, 2000);
+    }
+
+    function sendLDMessage(username, token) {
+      const ws = new WebSocket(`wss://app.howdies.app/?token=${token}`);
+      const roomId = 281;
+
+      ws.onopen = () => {
+        log(`🔄 Logging in ${username}`);
+        ws.send(JSON.stringify({ handler: "login", username, password: ldPassword, fcmt: username, lp: true }));
+        setTimeout(() => {
+          ws.send(JSON.stringify({ handler: "joinchatroom", roomid: roomId }));
+          setTimeout(() => {
+            const msg = getRandomLDMessage();
+            ws.send(JSON.stringify({ handler: "chatroommessage", roomid: roomId, text: msg, type: "text" }));
+            log(`📢 ${username} sent: ${msg}`);
+            setTimeout(() => {
+              ws.send(JSON.stringify({ handler: "leavechatroom", roomid: roomId }));
+              ws.close();
+              log(`👋 ${username} disconnected.`);
+            }, 700);
+          }, 700);
+        }, 700);
+      };
+
+      ws.onerror = (error) => {
+        log(`❌ WebSocket error for ${username}: ${error.message || error}`);
+      };
+    }
+
+    function getRandomLDMessage() {
+      if (availableNumbers.length === 0) {
+        availableNumbers = [...Array(10).keys()];
+        availableNumbers.sort(() => Math.random() - 0.5);
+      }
+      return `LD ${availableNumbers.pop()}`;
+    }
+  </script>
+</body>
+</html>
